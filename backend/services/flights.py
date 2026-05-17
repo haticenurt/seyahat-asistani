@@ -22,7 +22,7 @@ async def get_airport_ids(client: httpx.AsyncClient, query: str):
 async def search_flights(origin, destination, departure_date, return_date, adults):
     headers = {
         "x-rapidapi-key": os.getenv("RAPIDAPI_KEY"),
-        "x-rapidapi-host": "sky-scrapper.p.rapidapi.com"
+        "x-rapidapi-host": "flights-sky.p.rapidapi.com"
     }
     async with httpx.AsyncClient(timeout=30) as client:
         origin_sky_id, origin_entity_id = await get_airport_ids(client, origin)

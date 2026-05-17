@@ -7,7 +7,7 @@ async def get_airport_ids(client: httpx.AsyncClient, query: str):
         "x-rapidapi-host": "flights-sky.p.rapidapi.com"
     }
     res = await client.get(
-        "https://sky-scrapper.p.rapidapi.com/api/v1/flights/searchAirport",
+        "https://flights-sky.p.rapidapi.com/api/v1/flights/searchAirport",
         headers=headers,
         params={"query": query, "locale": "en-US"}
     )
@@ -29,7 +29,7 @@ async def search_flights(origin, destination, departure_date, return_date, adult
         dest_sky_id, dest_entity_id = await get_airport_ids(client, destination)
 
         res = await client.get(
-            "https://sky-scrapper.p.rapidapi.com/api/v2/flights/searchFlights",
+            "https://flights-sky.p.rapidapi.com/api/v2/flights/searchFlights",
             headers=headers,
             params={
                 "originSkyId": origin_sky_id,

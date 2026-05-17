@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+/* eslint-disable react/prop-types */
+
 export default function TravelPreference({ type, title, description, accentClass }){
     const [message, setMessage] = useState("");
     const [isSaving, setIsSaving] = useState(false);
@@ -11,7 +13,7 @@ export default function TravelPreference({ type, title, description, accentClass
         setMessage("");
 
         try {
-            const response = await fetch("http://localhost:3001/api/trips/latest/options", {
+            const response = await fetch("https://travel-assistant-production-273c.up.railway.app/search", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

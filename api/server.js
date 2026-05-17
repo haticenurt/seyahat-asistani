@@ -3,10 +3,12 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
+import process from "node:process";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const databasePath = join(__dirname, "../data/trips.json");
-const port = 3001;
+const port = Number(process.env.PORT) || 8000;
+const host = "0.0.0.0";
 
 const sendJson = (response, statusCode, data) => {
     response.writeHead(statusCode, {
@@ -57,8 +59,24 @@ const parseBody = request => new Promise((resolve, reject) => {
 });
 
 const validateTrip = trip => {
-    if (!trip.from || !trip.to || !trip.date || !trip.passengers) {
+    if (!trip.from || !trip.to || !trip.passengers) {
         return "Tum alanlar doldurulmali.";
+    }
+
+    if (trip.dateType === "range") {
+        if (!trip.startDate || !trip.endDate) {
+            return "Tarih araligi icin baslangic ve bitis tarihi secilmeli.";
+        }
+
+        if (new Date(trip.startDate) > new Date(trip.endDate)) {
+            return "Baslangic tarihi bitis tarihinden sonra olamaz.";
+        }
+
+        if (trip.isFlexible && Number(trip.flexibleDays) < 1) {
+            return "Esnek gun sayisi en az 1 olmali.";
+        }
+    } else if (!trip.date) {
+        return "Tarih secilmeli.";
     }
 
     if (Number(trip.passengers) < 1) {
@@ -66,6 +84,96 @@ const validateTrip = trip => {
     }
 
     return null;
+};
+
+const normalizeText = value => String(value || "").trim();
+
+const categorySettings = {
+    budget: {
+        label: "Butce dostu",
+        multiplier: 0.82,
+        airlines: ["Pegasus", "AnadoluJet", "SunExpress"],
+        hotel: "Ekonomik otel",
+    },
+    mid: {
+        label: "Fiyat/konfor dengesi",
+        multiplier: 1.08,
+        airlines: ["Turkish Airlines", "AJet", "Lufthansa"],
+        hotel: "Merkezi otel",
+    },
+    comfort: {
+        label: "Rahat yolculuk",
+        multiplier: 1.46,
+        airlines: ["Turkish Airlines", "Qatar Airways", "Emirates"],
+        hotel: "Premium otel",
+    },
+};
+
+const validateSearch = search => {
+    if (!normalizeText(search.from_location) || !normalizeText(search.to) || !normalizeText(search.date)) {
+        return "Kalkis, varis ve tarih alanlari zorunlu.";
+    }
+
+    if (Number(search.passengers) < 1) {
+        return "Yolcu sayisi en az 1 olmali.";
+    }
+
+    if (!categorySettings[search.category]) {
+        return "Gecersiz kategori.";
+    }
+
+    return null;
+};
+
+const hashText = value => normalizeText(value)
+    .toLowerCase()
+    .split("")
+    .reduce((total, char) => total + char.charCodeAt(0), 0);
+
+const getDateDemand = dateValue => {
+    const date = new Date(dateValue);
+
+    if (Number.isNaN(date.getTime())) {
+        return 1;
+    }
+
+    const monthDemand = [0.94, 0.98, 1.04, 1.08, 1.12, 1.28, 1.34, 1.3, 1.14, 1.02, 0.96, 1.18];
+    const weekendDemand = [0, 5, 6].includes(date.getDay()) ? 1.13 : 1;
+
+    return monthDemand[date.getMonth()] * weekendDemand;
+};
+
+const roundToTen = value => Math.max(690, Math.round(value / 10) * 10);
+
+const buildSearchPackages = search => {
+    const from = normalizeText(search.from_location);
+    const to = normalizeText(search.to);
+    const passengers = Number(search.passengers) || 1;
+    const settings = categorySettings[search.category];
+    const routeHash = hashText(`${from}-${to}`);
+    const routeDemand = 0.86 + (routeHash % 41) / 100;
+    const distanceProxy = 820 + Math.abs(hashText(from) - hashText(to)) * 7;
+    const dateDemand = getDateDemand(search.date);
+
+    return settings.airlines.map((airline, index) => {
+        const optionDemand = 0.92 + ((routeHash + index * 17) % 29) / 100;
+        const price = roundToTen(distanceProxy * settings.multiplier * dateDemand * routeDemand * optionDemand * passengers);
+        const stops = index === 0 ? "Direkt ucus" : `${index} aktarma`;
+
+        return {
+            id: `${search.category}-${routeHash}-${index + 1}`,
+            title: `${airline} ${stops.toLowerCase()}`,
+            route: `${from} - ${to}`,
+            airline,
+            description: `${stops}, ${settings.hotel}, ${passengers} yolcu icin toplam ${price.toLocaleString("tr-TR")} TL.`,
+            summary: `${settings.label}: ${airline} ile ${from} - ${to} rotasi.`,
+            date: normalizeText(search.date),
+            passengers,
+            price,
+            currency: "TRY",
+            category: search.category,
+        };
+    });
 };
 
 const saveLatestTripOptions = async options => {
@@ -108,8 +216,12 @@ const server = createServer(async (request, response) => {
                 id: randomUUID(),
                 from: trip.from,
                 to: trip.to,
-                dateType: trip.dateType || "day",
+                dateType: trip.dateType || "range",
                 date: trip.date,
+                startDate: trip.dateType === "range" ? trip.startDate : "",
+                endDate: trip.dateType === "range" ? trip.endDate : "",
+                isFlexible: Boolean(trip.isFlexible),
+                flexibleDays: trip.isFlexible ? Number(trip.flexibleDays) : null,
                 passengers: Number(trip.passengers),
                 createdAt: new Date().toISOString(),
             };
@@ -143,9 +255,30 @@ const server = createServer(async (request, response) => {
         }
     }
 
+    if (request.url === "/search" && request.method === "POST") {
+        try {
+            const search = await parseBody(request);
+            const errorMessage = validateSearch(search);
+
+            if (errorMessage) {
+                return sendJson(response, 400, { message: errorMessage });
+            }
+
+            return sendJson(response, 200, {
+                packages: buildSearchPackages(search),
+            });
+        } catch {
+            return sendJson(response, 400, { message: "Gecersiz istek." });
+        }
+    }
+
     return sendJson(response, 404, { message: "Endpoint bulunamadi." });
 });
 
-server.listen(port, () => {
-    console.log(`API http://localhost:${port} adresinde calisiyor`);
+server.listen(port, host, () => {
+    const publicUrl = process.env.RAILWAY_PUBLIC_DOMAIN
+        ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+        : `http://localhost:${port}`;
+
+    console.log(`API ${publicUrl} adresinde calisiyor`);
 });

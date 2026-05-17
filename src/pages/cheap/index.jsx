@@ -1,7 +1,5 @@
-export default function Cheap(){
+export default function Cheap(){    
     return(
-        <div>
-            ucuz
-        </div>
-    )
-}
+        <div>ucuz</div> 
+                 )
+                 }

@@ -24,6 +24,7 @@ const routes = createBrowserRouter([
                 path:'cheap',
                 element:<Cheap/>
             },
+          
             {
                 path:'medium',
                 element:<Medium/>

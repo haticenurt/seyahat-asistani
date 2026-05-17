@@ -59,5 +59,17 @@
     "date": "2929-03",
     "passengers": 1,
     "createdAt": "2026-05-13T18:10:33.951Z"
+  },
+  {
+    "id": "81b60cdd-5a50-49b8-99f5-9d00eb08a7d7",
+    "from": "istanbul",
+    "to": "amsterdam",
+    "dateType": "month",
+    "date": "2026-03",
+    "passengers": 1,
+    "createdAt": "2026-05-14T21:06:02.382Z",
+    "travelType": "medium",
+    "wantsCarRental": true,
+    "updatedAt": "2026-05-14T21:09:58.419Z"
   }
 ]

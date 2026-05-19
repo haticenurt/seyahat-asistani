@@ -20,6 +20,10 @@ const sendJson = (response, statusCode, data) => {
     response.end(JSON.stringify(data));
 };
 
+const logError = (label, error) => {
+    console.error(`[${label}]`, error?.stack || error);
+};
+
 const readTrips = async () => {
     try {
         const file = await readFile(databasePath, "utf8");
@@ -192,14 +196,29 @@ const saveLatestTripOptions = async options => {
     return latestTrip;
 };
 
-const server = createServer(async (request, response) => {
+const handleRequest = async (request, response) => {
+    console.log(`${request.method} ${request.url}`);
+
     if (request.method === "OPTIONS") {
         return sendJson(response, 200, {});
     }
 
+    if (request.url === "/health" && request.method === "GET") {
+        return sendJson(response, 200, {
+            ok: true,
+            service: "travel-assistant-api",
+            time: new Date().toISOString(),
+        });
+    }
+
     if (request.url === "/api/trips" && request.method === "GET") {
-        const trips = await readTrips();
-        return sendJson(response, 200, trips);
+        try {
+            const trips = await readTrips();
+            return sendJson(response, 200, trips);
+        } catch (error) {
+            logError("GET /api/trips", error);
+            return sendJson(response, 500, { message: "Yolculuklar okunamadi." });
+        }
     }
 
     if (request.url === "/api/trips" && request.method === "POST") {
@@ -230,7 +249,8 @@ const server = createServer(async (request, response) => {
             await saveTrips(trips);
 
             return sendJson(response, 201, newTrip);
-        } catch {
+        } catch (error) {
+            logError("POST /api/trips", error);
             return sendJson(response, 400, { message: "Gecersiz istek." });
         }
     }
@@ -250,7 +270,8 @@ const server = createServer(async (request, response) => {
             }
 
             return sendJson(response, 200, updatedTrip);
-        } catch {
+        } catch (error) {
+            logError("POST /api/trips/latest/options", error);
             return sendJson(response, 400, { message: "Gecersiz istek." });
         }
     }
@@ -258,6 +279,8 @@ const server = createServer(async (request, response) => {
     if (request.url === "/search" && request.method === "POST") {
         try {
             const search = await parseBody(request);
+            console.log("Search payload:", search);
+
             const errorMessage = validateSearch(search);
 
             if (errorMessage) {
@@ -267,12 +290,27 @@ const server = createServer(async (request, response) => {
             return sendJson(response, 200, {
                 packages: buildSearchPackages(search),
             });
-        } catch {
-            return sendJson(response, 400, { message: "Gecersiz istek." });
+        } catch (error) {
+            logError("POST /search", error);
+            return sendJson(response, 500, { message: "Arama sirasinda backend hatasi olustu." });
         }
     }
 
     return sendJson(response, 404, { message: "Endpoint bulunamadi." });
+};
+
+const server = createServer(async (request, response) => {
+    try {
+        await handleRequest(request, response);
+    } catch (error) {
+        logError("Unhandled request error", error);
+
+        if (!response.headersSent) {
+            sendJson(response, 500, { message: "Beklenmeyen backend hatasi." });
+        } else {
+            response.end();
+        }
+    }
 });
 
 server.listen(port, host, () => {

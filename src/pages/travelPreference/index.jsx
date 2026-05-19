@@ -2,6 +2,16 @@ import { useState } from "react";
 
 /* eslint-disable react/prop-types */
 
+const API_BASE_URL = "https://travel-assistant-production-273c.up.railway.app";
+
+const readResponseJson = async response => {
+    try {
+        return await response.json();
+    } catch {
+        return {};
+    }
+};
+
 export default function TravelPreference({ type, title, description, accentClass }){
     const [message, setMessage] = useState("");
     const [isSaving, setIsSaving] = useState(false);
@@ -13,7 +23,7 @@ export default function TravelPreference({ type, title, description, accentClass
         setMessage("");
 
         try {
-            const response = await fetch("https://travel-assistant-production-273c.up.railway.app/search", {
+            const response = await fetch("https://travel-assistant-production-273c.up.railway.app/search/api/trips/latest/options", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -25,8 +35,8 @@ export default function TravelPreference({ type, title, description, accentClass
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || "Secim kaydedilemedi.");
+                const errorData = await readResponseJson(response);
+                throw new Error(errorData.message || `Secim kaydedilemedi. (${response.status})`);
             }
 
             setMessage("Secimin kaydedildi.");
@@ -70,7 +80,7 @@ export default function TravelPreference({ type, title, description, accentClass
                             Arac kirala
                         </h2>
                         <p className="mt-3 text-sm leading-6 text-slate-600">
-                            Varis noktasinda daha ozgur hareket etmek istiyorum.
+                            Tatilimde daha özgür hareket etmek istiyorum.
                         </p>
                     </button>
 
@@ -85,13 +95,13 @@ export default function TravelPreference({ type, title, description, accentClass
                         }`}
                     >
                         <span className="text-sm font-bold uppercase tracking-wide text-slate-500">
-                            Hayir
+                            Hayır
                         </span>
                         <h2 className="mt-4 text-2xl font-black text-slate-950">
-                            Arac istemiyorum
+                            Araç istemiyorum
                         </h2>
                         <p className="mt-3 text-sm leading-6 text-slate-600">
-                            Toplu tasima, transfer veya yurume secenekleri yeterli.
+                            Toplu taşıma, transfer veya yürüme seçenekleri yeterli.
                         </p>
                     </button>
                 </div>

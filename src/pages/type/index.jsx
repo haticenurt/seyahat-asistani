@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 
+const API_BASE_URL = "https://travel-assistant-production-273c.up.railway.app";
+
 const travelTypes = [
     {
         title: "Ucuz",
-        description: "Butce dostu seceneklerle en uygun yolculugu bul.",
+        description: "Bütçe dostu seçeneklerle en uygun yolculuğu bul.",
         price: "En ekonomik",
         category: "budget",
         accent: "from-emerald-400 to-teal-500",
@@ -14,7 +16,7 @@ const travelTypes = [
     },
     {
         title: "Orta",
-        description: "Fiyat ve konfor dengesini koruyan secenekleri listele.",
+        description: "Fiyat ve konfor dengesini koruyan seçenekleri listele.",
         price: "Dengeli tercih",
         category: "mid",
         accent: "from-sky-400 to-blue-600",
@@ -24,7 +26,7 @@ const travelTypes = [
     },
     {
         title: "Konfor",
-        description: "Daha rahat ve kaliteli yolculuk alternatiflerini sec.",
+        description: "Daha rahat ve kaliteli yolculuk alternatiflerini seç.",
         price: "Rahat yolculuk",
         category: "comfort",
         accent: "from-violet-400 to-fuchsia-600",
@@ -58,6 +60,28 @@ const itemVariants = {
 
 const cleanLocation = location => location?.replace(/\s*\([^)]*\)/g, "").trim() || "";
 
+const readResponseJson = async response => {
+    try {
+        return await response.json();
+    } catch {
+        return {};
+    }
+};
+
+const getErrorMessage = (data, status) => {
+    if (typeof data.detail === "string") {
+        return data.detail;
+    }
+
+    if (Array.isArray(data.detail)) {
+        return data.detail
+            .map(error => error.msg || JSON.stringify(error))
+            .join(", ");
+    }
+
+    return data.message || `Backend aramasi basarisiz oldu. (${status})`;
+};
+
 const getPackageTitle = (packageItem, index) => (
     packageItem.title ||
     packageItem.name ||
@@ -84,7 +108,7 @@ export default function Type(){
 
         if (!savedTripInfo) {
             setPackages([]);
-            setMessage("Once ucus arama bilgilerini doldurmalisin.");
+            setMessage("Önce uçuş arama bilgilerini doldurmalısın.");
             return;
         }
 
@@ -94,7 +118,7 @@ export default function Type(){
             tripInfo = JSON.parse(savedTripInfo);
         } catch {
             setPackages([]);
-            setMessage("Kayitli ucus bilgisi okunamadi. Lutfen tekrar arama yap.");
+            setMessage("Kayıtlı uçuş bilgisi okunamadı. Lütfen tekrar arama yap.");
             return;
         }
 
@@ -103,7 +127,7 @@ export default function Type(){
         setMessage("");
 
         try {
-            const response = await fetch("https://travel-assistant-production-273c.up.railway.app/search",  {
+            const response = await fetch("https://travel-assistant-production-273c.up.railway.app/search", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -115,16 +139,17 @@ export default function Type(){
                 }),
             });
 
+            const data = await readResponseJson(response);
+
             if (!response.ok) {
-                throw new Error("Backend aramasi basarisiz oldu.");
+                throw new Error(getErrorMessage(data, response.status));
             }
 
-            const data = await response.json();
             setPackages(data.packages || []);
-            setMessage(data.packages?.length ? "" : "Bu kategori icin paket bulunamadi.");
+            setMessage(data.packages?.length ? "" : "Bu kategoride uygun paket bulunamadı.");
         } catch (error) {
             setPackages([]);
-            setMessage(error.message || "Arama sirasinda bir hata olustu.");
+            setMessage(error.message || "Arama sırasında bir hata oluştu.");
         } finally {
             setIsLoading(false);
         }
@@ -150,7 +175,7 @@ export default function Type(){
                         Nasil bir yolculuk istersin?
                     </h1>
                     <p className="mx-auto mt-5 max-w-2xl text-base font-medium leading-8 text-slate-600 sm:text-lg">
-                        Onceligini sec, sana uygun rota ve ulasim seceneklerini ona gore hazirlayalim.
+                        Önceligini seç, sana uygun rota ve ulaşım seçeneklerini ona göre hazırlayalım.
                     </p>
                 </motion.div>
 
